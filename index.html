@@ -224,9 +224,9 @@ var curJudge='',curKey='',curRec=null,scores={};
 
 // 설문 질문 관리
 var DEFAULT_QUESTIONS=[
-  {key:'q0',label:'분위기 & 케미 ✨'},
-  {key:'q1',label:'성격 & 인성 💛'},
-  {key:'q2',label:'재미있는 사람 😂'}
+  {key:'q0',label:'분위기 & 케미 ✨',type:'star'},
+  {key:'q1',label:'성격 & 인성 💛',type:'star'},
+  {key:'q2',label:'재미있는 사람 😂',type:'star'}
 ];
 function getQuestions(){
   try{var s=localStorage.getItem('inf_questions');if(s)return JSON.parse(s);}catch(e){}
@@ -235,7 +235,7 @@ function getQuestions(){
 function saveQuestions(q){localStorage.setItem('inf_questions',JSON.stringify(q));}
 var _surveyDraft=[];
 function openSurveyEditor(){
-  _surveyDraft=getQuestions().map(function(q){return {key:q.key,label:q.label};});
+  _surveyDraft=getQuestions().map(function(q){return {key:q.key,label:q.label,type:q.type||'star'};});
   renderSurveyItems();
   document.getElementById('survey-modal').style.display='flex';
 }
@@ -243,8 +243,13 @@ function closeSurveyEditor(){document.getElementById('survey-modal').style.displ
 function renderSurveyItems(){
   var el=document.getElementById('survey-items');
   el.innerHTML=_surveyDraft.map(function(q,i){
+    var isStar=(q.type||'star')==='star';
     return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
       +'<input value="'+q.label+'" oninput="_surveyDraft['+i+'].label=this.value" style="flex:1;border:1.5px solid #F0EBE3;border-radius:10px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none"/>'
+      +'<div style="display:flex;border:1.5px solid #F0EBE3;border-radius:10px;overflow:hidden;flex-shrink:0">'
+        +'<button onclick="_surveyDraft['+i+'].type=\'star\';renderSurveyItems()" style="padding:7px 10px;border:none;font-size:14px;cursor:pointer;background:'+(isStar?'#FFE4F0':'#fff')+';color:'+(isStar?'#B5006A':'#A89F97')+'">⭐</button>'
+        +'<button onclick="_surveyDraft['+i+'].type=\'ox\';renderSurveyItems()" style="padding:7px 10px;border:none;font-size:14px;cursor:pointer;background:'+(!isStar?'#FFE4F0':'#fff')+';color:'+(!isStar?'#B5006A':'#A89F97')+'">OX</button>'
+      +'</div>'
       +'<button onclick="_surveyDraft.splice('+i+',1);renderSurveyItems()" style="background:none;border:none;color:#F87171;font-size:18px;cursor:pointer;flex-shrink:0;padding:0 4px">×</button>'
       +'</div>';
   }).join('');
@@ -252,9 +257,8 @@ function renderSurveyItems(){
 function addSurveyItem(){
   var maxKey=0;
   _surveyDraft.forEach(function(q){var n=parseInt(q.key.replace('q',''));if(n>maxKey)maxKey=n;});
-  _surveyDraft.push({key:'q'+(maxKey+1),label:''});
+  _surveyDraft.push({key:'q'+(maxKey+1),label:'',type:'star'});
   renderSurveyItems();
-  // 새 인풋으로 포커스
   var inputs=document.getElementById('survey-items').querySelectorAll('input');
   if(inputs.length)inputs[inputs.length-1].focus();
 }
@@ -269,19 +273,37 @@ function renderFormQuestions(){
   var qs=getQuestions();
   scores={};
   var html=qs.map(function(q){
+    scores[q.key]=null;
+    if((q.type||'star')==='ox'){
+      return '<div class="form-row"><label>'+q.label+'</label>'
+        +'<div style="display:flex;gap:10px" id="ox-'+q.key+'">'
+        +'<button class="rb" id="oxo-'+q.key+'" onclick="setOX(\''+q.key+'\',true)" style="font-size:18px">⭕</button>'
+        +'<button class="rb" id="oxx-'+q.key+'" onclick="setOX(\''+q.key+'\',false)" style="font-size:18px">❌</button>'
+        +'</div></div>';
+    }
     scores[q.key]=0;
     return '<div class="form-row"><label>'+q.label+'</label><div class="star-row" id="star-'+q.key+'"></div></div>';
   }).join('');
   document.getElementById('score-rows').innerHTML=html;
-  qs.forEach(function(q){renderStars('star-'+q.key,q.key,0);});
+  qs.forEach(function(q){if((q.type||'star')==='star')renderStars('star-'+q.key,q.key,0);});
+}
+function setOX(key,val){
+  scores[key]=val;
+  document.getElementById('oxo-'+key).classList.toggle('sel',val===true);
+  document.getElementById('oxx-'+key).classList.toggle('sel',val===false);
 }
 function getAvgScore(slip){
-  // 신규 포맷: slip.scores 객체
   if(slip.scores){
-    var vals=Object.values(slip.scores).filter(function(v){return v>0;});
+    var qs=getQuestions();
+    var vals=[];
+    qs.forEach(function(q){
+      if((q.type||'star')==='star'){
+        var v=slip.scores[q.key];
+        if(v>0)vals.push(v);
+      }
+    });
     return vals.length?Math.round(vals.reduce(function(a,b){return a+b;},0)/vals.length):0;
   }
-  // 구버전 포맷: a,b,c
   return Math.round(((slip.a||0)+(slip.b||0)+(slip.c||0))/3);
 }
 
@@ -479,7 +501,8 @@ function showDetail(cname){
     var qs=getQuestions();
     var scoreHtml=qs.map(function(q){
       var v=s.scores?s.scores[q.key]:(q.key==='q0'?s.a:q.key==='q1'?s.b:s.c)||0;
-      return '<div>'+q.label+' '+stars(v)+'</div>';
+      var disp=(q.type||'star')==='ox'?(v===true?'⭕':(v===false?'❌':'—')):stars(v||0);
+      return '<div>'+q.label+' '+disp+'</div>';
     }).join('');
     sh+='<div class="dc"><div class="dj" style="justify-content:space-between"><div style="display:flex;align-items:center;gap:10px"><div class="dav"><img src="'+IMGS[s.judgeKey]+'" alt="'+s.judge+'"/></div><div class="djn">'+s.judge+'</div></div>'+btns+'</div><div style="display:flex;flex-direction:column;gap:4px;font-size:13px;color:#78716C;margin:8px 0">'+scoreHtml+'</div>'+(s.comment?'<div class="dcmt">💬 '+s.comment+'</div>':'')+'</div>';
   }
@@ -527,7 +550,8 @@ function editSlip(cname,judgeName){
   qs.forEach(function(q){
     var v=s.scores?s.scores[q.key]:(q.key==='q0'?s.a:q.key==='q1'?s.b:s.c)||0;
     scores[q.key]=v;
-    renderStars('star-'+q.key,q.key,v);
+    if((q.type||'star')==='ox'){setOX(q.key,v);}
+    else{renderStars('star-'+q.key,q.key,v||0);}
   });
   // 후보자 이름 고정 (수정 모드)
   var area=document.getElementById('cand-pick-area');

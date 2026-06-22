@@ -234,13 +234,11 @@ var curJudge='',curKey='',curRec=null,scores={};
 // Firebase Realtime Database URL을 아래에 붙여넣으세요.
 // 예) 'https://your-project-default-rtdb.firebaseio.com'
 // null이면 기기별 로컬 저장만 사용합니다.
-var DB_URL=null;
+// npoint.io 공유 저장소 (https://www.npoint.io/docs/23e9f9b726ddf4495335)
+var NPOINT_URL='https://api.npoint.io/23e9f9b726ddf4495335';
 
-function _fbUrl(){return DB_URL?DB_URL.replace(/\/$/,'')+'/inf.json':null;}
 function syncFromFirebase(cb){
-  var url=_fbUrl();
-  if(!url){if(cb)cb();return;}
-  fetch(url)
+  fetch(NPOINT_URL)
     .then(function(r){return r.json();})
     .then(function(d){
       if(d&&typeof d==='object'){
@@ -253,13 +251,12 @@ function syncFromFirebase(cb){
     .catch(function(){if(cb)cb();});
 }
 function saveToFirebase(){
-  var url=_fbUrl();if(!url)return;
   var d={
     inf_h2:JSON.parse(localStorage.getItem('inf_h2')||'{}'),
     inf_questions:JSON.parse(localStorage.getItem('inf_questions')||'null'),
     inf_pins:JSON.parse(localStorage.getItem('inf_pins')||'null')
   };
-  fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}).catch(function(){});
+  fetch(NPOINT_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}).catch(function(){});
 }
 window.addEventListener('load',function(){syncFromFirebase();});
 // ─────────────────────────────────────────────────────────────────

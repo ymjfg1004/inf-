@@ -44,6 +44,12 @@ textarea:focus{border-color:#F9A8D4}
     </div>
 
     <div class="card">
+      <h3>이름</h3>
+      <div class="q-label">이름을 입력해주세요</div>
+      <input type="text" id="q0" placeholder="이름" style="width:100%;border:1.5px solid #F0EBE3;border-radius:12px;padding:12px 14px;font-size:16px;font-family:inherit;outline:none;transition:border-color .2s" onfocus="this.style.borderColor='#F9A8D4'" onblur="this.style.borderColor='#F0EBE3'"/>
+    </div>
+
+    <div class="card">
       <h3>Q1</h3>
       <div class="q-label">모임에 만족하셨나요?</div>
       <div class="star-row" id="star-q1">
@@ -110,12 +116,14 @@ function setOX(key,val){
   }
 }
 function submitSurvey(){
+  if(!document.getElementById('q0').value.trim()){alert('이름을 입력해주세요');return;}
   if(!starVal){alert('만족도를 선택해주세요 ⭐');return;}
   if(q2Val===null){alert('Q2를 선택해주세요');return;}
   if(q4Val===null){alert('Q4를 선택해주세요');return;}
   var btn=document.getElementById('submit-btn');
   btn.disabled=true;btn.textContent='제출 중...';
   var newEntry={
+    name:document.getElementById('q0').value.trim(),
     date:new Date().toLocaleDateString('ko-KR'),
     q1:starVal,
     q2:q2Val,

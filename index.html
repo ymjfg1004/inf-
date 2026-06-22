@@ -114,7 +114,10 @@ textarea.fi{resize:vertical;min-height:90px;font-size:13px}
     </div>
   </div>
   <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2rem;padding:0 4px">
-    <button onclick="goPage('p3')" style="background:none;border:none;color:#A89F97;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:underline">이전 심사 기록 보기 →</button>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button onclick="goPage('p3')" style="background:none;border:none;color:#A89F97;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:underline;text-align:left">이전 심사 기록 보기 →</button>
+      <button onclick="goPage('p5')" style="background:none;border:none;color:#A89F97;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:underline;text-align:left">참여자 설문 보기 →</button>
+    </div>
     <button onclick="openSurveyEditor()" style="background:none;border:1.5px solid #F0EBE3;border-radius:20px;padding:6px 14px;color:#78716C;font-size:13px;cursor:pointer;font-family:inherit">✏️ 설문지 수정</button>
   </div>
 </div>
@@ -171,6 +174,18 @@ textarea.fi{resize:vertical;min-height:90px;font-size:13px}
   </div>
   <div class="dc"><div class="smry" id="dsmry"></div></div>
   <div id="dslips"></div>
+</div>
+</div>
+
+<div id="p5" class="page">
+<div class="wrap">
+  <button class="back-btn" onclick="goPage('p1')">← 처음으로</button>
+  <div class="hero" style="margin-bottom:1.5rem">
+    <div class="badge">✦ PARTICIPANTS ✦</div>
+    <h1 style="font-size:22px">참여자 후기</h1>
+    <p style="font-size:13px;color:#78716C;margin-top:6px">설문 링크: <a href="https://ymjfg1004.github.io/inf-/survey.html" target="_blank" style="color:#E0478A">survey 열기 🔗</a></p>
+  </div>
+  <div id="survey-results"></div>
 </div>
 </div>
 
@@ -451,7 +466,31 @@ function resetPin(key){
   var pins=getPins();pins[key]={pwd:'0000',set:false};savePins(pins);
   showToast('비밀번호가 초기화됐어요 (0000)');
 }
-function goPage(id){document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});document.getElementById(id).classList.add('active');window.scrollTo(0,0);if(id==='p3')renderHistory();}
+function goPage(id){document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});document.getElementById(id).classList.add('active');window.scrollTo(0,0);if(id==='p3')renderHistory();if(id==='p5')renderSurveyResults();}
+function renderSurveyResults(){
+  fetch('https://api.npoint.io/23e9f9b726ddf4495335?t='+Date.now(),{cache:'no-store'})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var list=d.inf_survey||[];
+      var el=document.getElementById('survey-results');
+      if(!list.length){el.innerHTML='<div class="history-empty">아직 참여자 후기가 없어요</div>';return;}
+      var html=list.slice().reverse().map(function(r){
+        var stars='';for(var i=0;i<(r.q1||0);i++)stars+='⭐';
+        return '<div class="cg" style="margin-bottom:1rem">'
+          +'<div style="padding:1rem 1.25rem;border-bottom:1px solid #F0EBE3;display:flex;justify-content:space-between;align-items:center">'
+          +'<span style="font-size:13px;color:#A89F97">'+r.date+'</span>'
+          +'<span style="font-size:13px;font-weight:600;color:#E0478A">'+stars+'</span>'
+          +'</div>'
+          +'<div style="padding:1rem 1.25rem;display:flex;flex-direction:column;gap:.6rem">'
+          +'<div style="font-size:13px"><span style="color:#B5006A;font-weight:600">합류 의향</span> '+(r.q2?'⭕ 예':'❌ 아니요')+'</div>'
+          +(r.q3?'<div style="font-size:13px;color:#4B4543;background:#FFF9F0;padding:10px 12px;border-radius:10px;line-height:1.6">'+r.q3+'</div>':'')
+          +'<div style="font-size:13px"><span style="color:#B5006A;font-weight:600">도전 의향</span> '+(r.q4?'⭕ 예':'❌ 아니요')+'</div>'
+          +'</div></div>';
+      }).join('');
+      el.innerHTML='<div style="font-size:13px;color:#A89F97;margin-bottom:1rem">총 '+list.length+'건</div>'+html;
+    })
+    .catch(function(){document.getElementById('survey-results').innerHTML='<div class="history-empty">불러오기 실패</div>';});
+}
 function selectMember(name,key){
   curJudge=name;curKey=key;
   document.getElementById('jname').textContent=name;

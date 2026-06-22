@@ -62,6 +62,12 @@ textarea:focus{border-color:#F9A8D4}
     </div>
 
     <div class="card">
+      <h3>후기</h3>
+      <div class="q-label">모임의 후기를 작성해주세요</div>
+      <textarea id="q_review" placeholder="자유롭게 작성해주세요 ✍️"></textarea>
+    </div>
+
+    <div class="card">
       <h3>Q2</h3>
       <div class="q-label">이 모임에 합류하고 싶으신가요?</div>
       <div class="ox-row">
@@ -125,6 +131,7 @@ function submitSurvey(){
   var newEntry={
     name:document.getElementById('q0').value.trim(),
     date:new Date().toLocaleDateString('ko-KR'),
+    review:document.getElementById('q_review').value.trim(),
     q1:starVal,
     q2:q2Val,
     q3:document.getElementById('q3').value.trim(),

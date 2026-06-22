@@ -484,7 +484,8 @@ function renderSurveyResults(){
           +'<div style="padding:.5rem 1.25rem;border-bottom:1px solid #F0EBE3"><span style="font-size:13px;font-weight:600;color:#E0478A">'+stars+'</span></div>'
           +'<div style="padding:1rem 1.25rem;display:flex;flex-direction:column;gap:.6rem">'
           +'<div style="font-size:13px"><span style="color:#B5006A;font-weight:600">합류 의향</span> '+(r.q2?'⭕ 예':'❌ 아니요')+'</div>'
-          +(r.q3?'<div style="font-size:13px;color:#4B4543;background:#FFF9F0;padding:10px 12px;border-radius:10px;line-height:1.6">'+r.q3+'</div>':'')
+          +(r.review?'<div style="font-size:13px;color:#4B4543;background:#FFF9F0;padding:10px 12px;border-radius:10px;line-height:1.6">💬 '+r.review+'</div>':'')
+          +(r.q3?'<div style="font-size:13px;color:#4B4543;background:#FFF9F0;padding:10px 12px;border-radius:10px;line-height:1.6">✨ '+r.q3+'</div>':'')
           +'<div style="font-size:13px"><span style="color:#B5006A;font-weight:600">도전 의향</span> '+(r.q4?'⭕ 예':'❌ 아니요')+'</div>'
           +'</div></div>';
       }).join('');

@@ -206,7 +206,7 @@ function makeBarrel(toTier){ const hp=Math.round((8*toTier*toTier+level*6)*(0.6+
 function barrelDelay(){ return 1.4 + level*1.1; }
 function startLevel(){
   state=State.PLAY;
-  g.cannonX=.5; g.targetX=.5; g.units=[]; g.enemies=[]; g.particles=[]; g.floats=[];
+  g.cannonX=.5; g.targetX=.5; drag=false; g.units=[]; g.enemies=[]; g.particles=[]; g.floats=[];
   g.count=1; g.tier=1; g.barrel=null; g.barrelTimer=1.0+level*0.4; g.pOffs=makeWideOffs(60);
   g.fireTimer=0; g.spawnTimer=2.6; g.bossSpawned=false; g.boss=null; g.shake=0; g.flash=0;
   g.waveLeft=55+level*12; g.intro=3.6; g.cards=[]; g.cardTimer=0.6; g.midTimer=4.0;
@@ -314,7 +314,7 @@ function update(dt){
 
   // 오른쪽: 내려오는 +1 / (가끔)×n 카드 — 유닛으로 맞춰야 획득, 놓치면 사라짐
   g.cardTimer-=dt;
-  if(g.cardTimer<=0){ g.cardTimer=0.48+Math.random()*0.42;
+  if(g.cardTimer<=0){ g.cardTimer=0.78+Math.random()*0.5;
     const mul=Math.random()<0.07;
     const cxp=(roadX+colW*2.5)+(Math.random()*2-1)*colW*0.18;
     g.cards.push({x:cxp/W, y:-24, type:mul?'mul':'add', val:mul?(2+Math.floor(Math.random()*2)):1,

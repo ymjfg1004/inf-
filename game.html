@@ -233,10 +233,13 @@ function laneOf(px){ if(px<roadX+colW) return 0; if(px<roadX+colW*2) return 1; r
 const MAXBUG=28; // 무리로 그릴 최대 벌레 수 (성능)
 function makeOffs(n,sp){ const a=[]; for(let i=0;i<n;i++){ const ang=i*2.39996, rad=Math.sqrt(i)*sp;
   a.push({ox:Math.cos(ang)*rad, oy:Math.sin(ang)*rad*0.72}); } return a; }
-// 내 부대: 가로로 넓게 퍼지는 전열(줄) 배치
-function makeWideOffs(n){ const a=[], perRow=14, dx=(roadW*0.62)/(perRow-1), dy=dx*0.9;
-  for(let i=0;i<n;i++){ const row=Math.floor(i/perRow), idx=i%perRow;
-    a.push({ox:(idx-(perRow-1)/2)*dx + (row%2?dx/2:0), oy:-row*dy}); } return a; }
+// 내 부대: 가로로 넓게, 겹쳐서 채워지는 무리 배치 (균일X)
+function makeWideOffs(n){ const a=[], halfW=roadW*0.31;
+  for(let i=0;i<n;i++){
+    const ox=(Math.random()*2-1)*halfW*(0.5+0.5*Math.random());
+    const oy=-Math.random()*44 - (i>18? Math.random()*20:0);
+    a.push({ox, oy}); }
+  return a; }
 function enemyR(e){ if(e.boss) return 54;
   const shown=Math.min(MAXBUG,Math.max(1,Math.ceil(e.count))); return Math.sqrt(shown)*e.sp+e.cr; }
 function spawnEnemy(midboss){
@@ -261,11 +264,12 @@ function update(dt){
   g.flash*=Math.pow(.001,dt); g.shake*=Math.pow(.0001,dt);
   const cx=g.cannonX*W, cannonY=H-70;
 
-  // 발사 (count 많을수록 빠름/두꺼움)
-  const rate=Math.min(55, 3+g.count*1.4), interval=1/rate;
-  g.fireTimer-=dt; let emit=0;
-  while(g.fireTimer<=0 && emit<4){ g.fireTimer+=interval; emit++;
-    if(g.units.length<320) g.units.push({x:cx+(Math.random()*2-1)*10, y:cannonY, done:false}); }
+  // 발사 — 캐릭터 하나당 한 발씩, 각자 위치에서
+  g.fireTimer-=dt;
+  if(g.fireTimer<=0){ g.fireTimer=0.32;
+    const pc=Math.min(g.pOffs.length,Math.max(1,Math.round(g.count))), pcy=cannonY-8;
+    for(let k=0;k<pc && g.units.length<360;k++){ const o=g.pOffs[k];
+      g.units.push({x:cx+o.ox, y:pcy+o.oy, done:false}); } }
 
   // 적 스폰(가운데, 물량 많이)
   if(g.intro>0) g.intro-=dt;
@@ -277,7 +281,7 @@ function update(dt){
     if(g.waveLeft<=0 && g.enemies.length===0) spawnBoss();
   }
 
-  const uspeed=H*0.62;
+  const uspeed=H*0.88;
   for(let i=g.units.length-1;i>=0;i--){ const u=g.units[i]; if(u.done){ g.units.splice(i,1); continue; }
     u.y-=uspeed*dt;
     if(u.y<-20){ g.units.splice(i,1); }
@@ -396,19 +400,21 @@ function render(){
         ctx.beginPath(); ctx.arc(ex,e.y,er*.85,0,7); ctx.fill(); ctx.globalAlpha=1; }
     } }
 
-  for(const u of g.units) drawUnit(u.x,u.y,7,g.tier);
+  // 총알(각 캐릭터가 쏜 작은 탄)
+  { const col=tierColor[Math.min(5,g.tier)];
+    for(const u of g.units){ if(u.done) continue;
+      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(u.x,u.y,4.5,0,7); ctx.fill();
+      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(u.x,u.y,3,0,7); ctx.fill(); } }
 
   const cx=g.cannonX*W, cannonY=H-70;
   // 내 부대(갯수) — 캐논 주위에 버비 무리, 카드 먹으면 커짐
   { const pc=Math.min(g.pOffs.length,Math.max(1,Math.round(g.count))), pcy=cannonY-8;
     ctx.fillStyle='rgba(0,0,0,.15)'; ctx.beginPath(); ctx.ellipse(cx,cannonY+16,roadW*0.34,12,0,0,7); ctx.fill();
     for(let k=pc-1;k>=0;k--){ const o=g.pOffs[k]; drawUnit(cx+o.ox,pcy+o.oy,7,g.tier); } }
-  ctx.fillStyle='rgba(0,0,0,.2)'; ctx.beginPath(); ctx.ellipse(cx,cannonY+34,44,12,0,0,7); ctx.fill();
-  ctx.fillStyle=C.navy; roundRect(cx-34,cannonY+6,68,34,10); ctx.fill();
-  ctx.fillStyle=tierColor[Math.min(5,g.tier)]; roundRect(cx-16,cannonY-30,32,44,10); ctx.fill();
-  drawUnit(cx,cannonY-30,11,g.tier);
-  ctx.strokeStyle='rgba(255,255,255,.3)'; ctx.setLineDash([6,10]); ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(cx,cannonY-42); ctx.lineTo(cx,90); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='rgba(0,0,0,.2)'; ctx.beginPath(); ctx.ellipse(cx,cannonY+30,52,12,0,0,7); ctx.fill();
+  ctx.fillStyle=C.navy; roundRect(cx-34,cannonY+16,68,22,9); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.22)'; ctx.setLineDash([6,10]); ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(cx,cannonY); ctx.lineTo(cx,90); ctx.stroke(); ctx.setLineDash([]);
 
   for(const p of g.particles){ ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.color;
     ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill(); } ctx.globalAlpha=1;

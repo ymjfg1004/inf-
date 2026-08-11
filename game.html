@@ -209,7 +209,7 @@ function startLevel(){
   g.cannonX=.5; g.targetX=.5; g.units=[]; g.enemies=[]; g.particles=[]; g.floats=[];
   g.count=1; g.tier=1; g.barrel=null; g.barrelTimer=1.0+level*0.4; g.pOffs=makeWideOffs(60);
   g.fireTimer=0; g.spawnTimer=2.6; g.bossSpawned=false; g.boss=null; g.shake=0; g.flash=0;
-  g.waveLeft=18+level*4; g.intro=3.6; g.cards=[]; g.cardTimer=0.6;
+  g.waveLeft=30+level*6; g.intro=3.6; g.cards=[]; g.cardTimer=0.6;
   document.getElementById('endScreen').classList.add('hidden');
   document.getElementById('startScreen').classList.add('hidden');
 }
@@ -232,7 +232,7 @@ const cenL=()=>(roadX+colW)/W, cenR=()=>(roadX+colW*2)/W;
 function laneOf(px){ if(px<roadX+colW) return 0; if(px<roadX+colW*2) return 1; return 2; }
 
 // ===== 스폰 =====
-const MAXBUG=28; // 무리로 그릴 최대 벌레 수 (성능)
+const MAXBUG=32; // 무리로 그릴 최대 벌레 수 (성능)
 function makeOffs(n,sp){ const a=[]; for(let i=0;i<n;i++){ const ang=i*2.39996, rad=Math.sqrt(i)*sp;
   a.push({ox:Math.cos(ang)*rad, oy:Math.sin(ang)*rad*0.72}); } return a; }
 // 내 부대: 한 칸(레인) 폭 안에서 겹쳐 채워지는 무리, 갯수 늘면 위로 쌓임
@@ -246,7 +246,7 @@ function enemyR(e){ if(e.boss) return 54;
   const shown=Math.min(MAXBUG,Math.max(1,Math.ceil(e.count))); return Math.sqrt(shown)*e.sp+e.cr; }
 function spawnEnemy(midboss){
   const t=midboss?1:(level<=1?0:(Math.random()<.75?0:1));
-  const count=(midboss?30+level*6:(t===0?3+Math.floor(Math.random()*5):8+Math.floor(Math.random()*8)))+level;
+  const count=(midboss?48+level*8:(t===0?5+Math.floor(Math.random()*7):12+Math.floor(Math.random()*12)))+level*2;
   const x=cenL()+Math.random()*(cenR()-cenL());
   const cr=midboss?10:8, sp=cr*1.2;
   g.enemies.push({x,y:-40,count,max:count,tier:t,boss:false,midboss:!!midboss,
@@ -276,10 +276,11 @@ function update(dt){
   // 적 스폰(가운데, 물량 많이)
   if(g.intro>0) g.intro-=dt;
   if(!g.bossSpawned){ g.spawnTimer-=dt;
-    if(g.spawnTimer<=0 && g.waveLeft>0){ const mid=(g.waveLeft%6===0);
-      g.spawnTimer=mid?1.8:Math.max(.14,0.42-level*.05); spawnEnemy(mid); g.waveLeft--;
-      if(!mid){ if(Math.random()<.8 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; }
-                if(Math.random()<.5 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; } } }
+    if(g.spawnTimer<=0 && g.waveLeft>0){ const mid=(g.waveLeft%7===0);
+      g.spawnTimer=mid?1.6:Math.max(.1,0.3-level*.04); spawnEnemy(mid); g.waveLeft--;
+      if(!mid){ if(Math.random()<.9 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; }
+                if(Math.random()<.7 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; }
+                if(Math.random()<.45 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; } } }
     if(g.waveLeft<=0 && g.enemies.length===0) spawnBoss();
   }
 

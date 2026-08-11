@@ -173,7 +173,7 @@ function startLevel(){
   g.cannonX=.5; g.targetX=.5; g.units=[]; g.enemies=[]; g.particles=[]; g.floats=[];
   g.count=1; g.tier=1; g.barrel=makeBarrel(2);
   g.fireTimer=0; g.spawnTimer=2.6; g.bossSpawned=false; g.boss=null; g.shake=0; g.flash=0;
-  g.waveLeft=10+level*3; g.intro=3.6;
+  g.waveLeft=10+level*3; g.intro=3.6; g.cards=[]; g.cardTimer=0.6;
   document.getElementById('endScreen').classList.add('hidden');
   document.getElementById('startScreen').classList.add('hidden');
 }
@@ -242,13 +242,29 @@ function update(dt){
         boom(u.x,barrelY,1); g.barrel = g.tier<5 ? makeBarrel(g.tier+1) : null; }
       continue;
     }
-    // 오른쪽: +1 갯수
-    if(lane===2 && u.y<=rightGateY){
-      g.count=Math.min(240,g.count+1); hit(u.x,u.y,C.blueL); u.done=true;
-      if(Math.random()<.25) g.floats.push({x:u.x,y:rightGateY,txt:'＋1',life:.6,color:C.blueL});
-      continue;
-    }
     if(u.y<-20){ g.units.splice(i,1); }
+  }
+
+  // 오른쪽: 내려오는 +1 / (가끔)×n 카드 — 유닛으로 맞춰야 획득, 놓치면 사라짐
+  g.cardTimer-=dt;
+  if(g.cardTimer<=0){ g.cardTimer=0.55+Math.random()*0.35;
+    const mul=Math.random()<0.07;
+    const cxp=(roadX+colW*2.5)+(Math.random()*2-1)*colW*0.18;
+    g.cards.push({x:cxp/W, y:-24, type:mul?'mul':'add', val:mul?(2+Math.floor(Math.random()*2)):1,
+      speed:70+level*5}); }
+  const cw=colW*0.72;
+  for(let ci=g.cards.length-1;ci>=0;ci--){ const c=g.cards[ci]; c.y+=c.speed*dt;
+    const cxpx=c.x*W; let got=false;
+    for(let i=g.units.length-1;i>=0;i--){ const u=g.units[i]; if(u.done||laneOf(u.x)!==2) continue;
+      if(Math.abs(u.x-cxpx)<cw/2 && Math.abs(u.y-c.y)<26){ u.done=true; got=true;
+        if(c.type==='mul'){ g.count=Math.min(300,Math.max(2,Math.round(g.count*c.val)));
+          g.floats.push({x:cxpx,y:c.y,txt:'×'+c.val+' 보너스!',life:1.1,color:C.yellow}); boom(cxpx,c.y,0); }
+        else { g.count=Math.min(300,g.count+1); }
+        hit(cxpx,c.y,c.type==='mul'?C.yellow:C.blueL); break; }
+    }
+    if(got){ g.cards.splice(ci,1); continue; }
+    if(c.y>cannonY-24){ g.cards.splice(ci,1);
+      if(c.type==='mul') g.floats.push({x:cxpx,y:cannonY-40,txt:'놓침!',life:.7,color:'#ff9db4'}); }
   }
 
   // 적 이동 + 충돌(가운데)
@@ -297,10 +313,14 @@ function render(){
   if(g.barrel) drawBarrel(roadX+colW*0.5,barrelY,g.barrel);
   else { ctx.fillStyle=C.yellow; ctx.font='900 16px -apple-system,sans-serif';
     ctx.fillText('👑 MAX',roadX+colW*0.5,barrelY); }
-  // 오른쪽 +1 게이트
-  ctx.fillStyle=C.blue; roundRect(roadX+colW*2+6,rightGateY-18,colW-12,36,9); ctx.fill();
-  ctx.fillStyle='rgba(255,255,255,.3)'; roundRect(roadX+colW*2+6,rightGateY-18,colW-12,7,4); ctx.fill();
-  ctx.fillStyle='#fff'; ctx.font='900 22px -apple-system,sans-serif'; ctx.fillText('＋1',roadX+colW*2.5,rightGateY);
+  // 오른쪽 내려오는 카드
+  const cw=colW*0.72;
+  for(const c of g.cards){ const cxpx=c.x*W, mul=c.type==='mul';
+    ctx.fillStyle=mul?C.yellow:C.blue; roundRect(cxpx-cw/2,c.y-19,cw,38,10); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.32)'; roundRect(cxpx-cw/2,c.y-19,cw,8,5); ctx.fill();
+    ctx.fillStyle=mul?'#3a2a00':'#fff'; ctx.font=`900 ${mul?22:20}px -apple-system,sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(mul?('×'+c.val):'＋1',cxpx,c.y); }
 
   // 적
   for(const e of g.enemies){ const ex=e.x*W, er=e.boss?54:(e.midboss?30:(13+Math.min(22,e.count*1.2)));

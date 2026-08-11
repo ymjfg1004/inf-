@@ -74,7 +74,7 @@ const State={START:0,PLAY:1,END:2};
 let state=State.START, level=1, best=+(localStorage.getItem('buggle_top_best')||0);
 
 const g={ cannonX:.5, targetX:.5, units:[], enemies:[], particles:[], floats:[], cards:[], pOffs:[],
-  count:1, tier:1, barrel:null, barrelTimer:0, fireTimer:0, spawnTimer:0, waveLeft:0, cardTimer:0, intro:0,
+  count:1, tier:1, barrel:null, barrelTimer:0, fireTimer:0, spawnTimer:0, waveLeft:0, cardTimer:0, intro:0, midTimer:0,
   bossSpawned:false, boss:null, shake:0, flash:0 };
 
 // ===== 드로잉 =====
@@ -209,7 +209,7 @@ function startLevel(){
   g.cannonX=.5; g.targetX=.5; g.units=[]; g.enemies=[]; g.particles=[]; g.floats=[];
   g.count=1; g.tier=1; g.barrel=null; g.barrelTimer=1.0+level*0.4; g.pOffs=makeWideOffs(60);
   g.fireTimer=0; g.spawnTimer=2.6; g.bossSpawned=false; g.boss=null; g.shake=0; g.flash=0;
-  g.waveLeft=30+level*6; g.intro=3.6; g.cards=[]; g.cardTimer=0.6;
+  g.waveLeft=55+level*12; g.intro=3.6; g.cards=[]; g.cardTimer=0.6; g.midTimer=4.0;
   document.getElementById('endScreen').classList.add('hidden');
   document.getElementById('startScreen').classList.add('hidden');
 }
@@ -243,17 +243,18 @@ function makeWideOffs(n){ const a=[], halfW=colW*0.38;
     a.push({ox, oy}); }
   return a; }
 function enemyR(e){ if(e.boss) return 54;
+  if(e.midboss) return 26+Math.min(20,e.count*0.28);
   const shown=Math.min(MAXBUG,Math.max(1,Math.ceil(e.count))); return Math.sqrt(shown)*e.sp+e.cr; }
 function spawnEnemy(midboss){
   const t=midboss?1:(level<=1?0:(Math.random()<.75?0:1));
-  const count=(midboss?48+level*8:(t===0?5+Math.floor(Math.random()*7):12+Math.floor(Math.random()*12)))+level*2;
+  const count=(midboss?70+level*14:(t===0?5+Math.floor(Math.random()*7):12+Math.floor(Math.random()*12)))+level*2;
   const x=cenL()+Math.random()*(cenR()-cenL());
   const cr=midboss?10:8, sp=cr*1.2;
   g.enemies.push({x,y:-40,count,max:count,tier:t,boss:false,midboss:!!midboss,
     speed:(midboss?40:64+level*5),flash:0, cr, sp, offs:makeOffs(MAXBUG,sp)});
 }
-function spawnBoss(){ const tier=bossTier(), count=Math.round((160+level*110)*(1+level*.1));
-  g.boss={x:(cenL()+cenR())/2,y:-70,count,max:count,tier,boss:true,speed:12};
+function spawnBoss(){ const tier=bossTier(), count=Math.round((240+level*170)*(1+level*.15));
+  g.boss={x:0.5,y:-70,count,max:count,tier,boss:true,speed:9,phase:0,minionT:1.8,flash:0};
   g.enemies.push(g.boss); g.bossSpawned=true; }
 
 // ===== 루프 =====
@@ -276,12 +277,20 @@ function update(dt){
   // 적 스폰(가운데, 물량 많이)
   if(g.intro>0) g.intro-=dt;
   if(!g.bossSpawned){ g.spawnTimer-=dt;
-    if(g.spawnTimer<=0 && g.waveLeft>0){ const mid=(g.waveLeft%7===0);
-      g.spawnTimer=mid?1.6:Math.max(.1,0.3-level*.04); spawnEnemy(mid); g.waveLeft--;
-      if(!mid){ if(Math.random()<.9 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; }
-                if(Math.random()<.7 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; }
-                if(Math.random()<.45 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; } } }
+    if(g.spawnTimer<=0 && g.waveLeft>0){
+      g.spawnTimer=Math.max(.14,0.34-level*.03); spawnEnemy(false); g.waveLeft--;
+      if(Math.random()<.8 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; }
+      if(Math.random()<.5 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; } }
+    // 미니보스(글리치)를 중간중간 등장
+    g.midTimer-=dt;
+    if(g.midTimer<=0 && g.waveLeft>0){ g.midTimer=Math.max(3.0,5.5-level*0.2); spawnEnemy(true); }
     if(g.waveLeft<=0 && g.enemies.length===0) spawnBoss();
+  } else if(g.boss && g.boss.count>0){
+    // 대보스: 좌우로 움직이고 미니언(버그) 소환
+    g.boss.phase+=dt;
+    g.boss.x=0.5 + Math.sin(g.boss.phase*0.8)*((cenR()-cenL())*0.42);
+    g.boss.minionT-=dt;
+    if(g.boss.minionT<=0){ g.boss.minionT=Math.max(1.0,2.4-level*0.1); spawnEnemy(false); }
   }
 
   const uspeed=H*0.88;
@@ -394,6 +403,17 @@ function render(){
       ctx.fillStyle=C.pink; roundRect(ex-bw/2,e.y-er-16,bw*Math.max(0,e.count/e.max),8,4); ctx.fill();
       ctx.fillStyle='#fff'; ctx.globalAlpha=.9; ctx.font='800 15px -apple-system,sans-serif';
       ctx.fillText(bossName[e.tier],ex,e.y-er-28); ctx.globalAlpha=1;
+    } else if(e.midboss){
+      // 미니보스(글리치) — 단일 개체 + 숫자
+      ctx.fillStyle='rgba(0,0,0,.2)'; ctx.beginPath(); ctx.ellipse(ex,e.y+er*.7,er*.85,er*.28,0,0,7); ctx.fill();
+      drawBug(ex,e.y,er,e.tier);
+      if(e.flash>0){ ctx.globalAlpha=Math.min(1,e.flash); ctx.fillStyle='#fff';
+        ctx.beginPath(); ctx.arc(ex,e.y,er,0,7); ctx.fill(); ctx.globalAlpha=1; }
+      ctx.fillStyle='#fff'; ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=4;
+      ctx.font='900 18px -apple-system,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      const t=Math.max(0,e.count).toString(); ctx.strokeText(t,ex,e.y); ctx.fillText(t,ex,e.y);
+      const bw=er*1.7; ctx.fillStyle='rgba(0,0,0,.4)'; roundRect(ex-bw/2,e.y-er-12,bw,6,3); ctx.fill();
+      ctx.fillStyle='#c79bff'; roundRect(ex-bw/2,e.y-er-12,bw*Math.max(0,e.count/e.max),6,3); ctx.fill();
     } else {
       // 숫자 대신 갯수만큼 벌레 무리
       const shown=Math.min(e.offs.length,Math.max(1,Math.ceil(e.count)));

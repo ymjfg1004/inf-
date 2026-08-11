@@ -165,11 +165,23 @@ function buildSprites(){ const S=72;
   for(let t=1;t<=5;t++){ const {c,x}=mkCanvas(S); drawUnitSprite(x,S,t); SP.unit[t]=c; }
   for(let ty=0;ty<=2;ty++){ const {c,x}=mkCanvas(S); drawBugSprite(x,S,ty); SP.bug[ty]=c; } }
 
-// blit 래퍼 — 기존 시그니처 유지
-function drawUnit(x,y,r,tier){ const spr=SP.unit[Math.max(1,Math.min(5,tier|0))]; if(!spr) return;
-  const s=r*4.0; ctx.drawImage(spr,x-s/2,y-s/2,s,s); }
-function drawBug(x,y,r,type){ const spr=SP.bug[Math.max(0,Math.min(2,type|0))]; if(!spr) return;
-  const s=r*3.4; ctx.drawImage(spr,x-s/2,y-s/2,s,s); }
+// ===== 실제 3D 이미지 슬롯 =====
+// 여기에 투명 PNG의 data URI를 넣으면 굽은 스프라이트 대신 자동으로 사용됨.
+//   ASSETS.unit[1] = 버비 기본, [2]=견습, [3]=기사, [4]=대장, [5]=킹 버비
+//   ASSETS.bug[0]  = 버그링, [1]=글리치, [2]=킹 글리치
+const ASSETS={ unit:{1:null,2:null,3:null,4:null,5:null}, bug:{0:null,1:null,2:null} };
+function loadAssets(){
+  const put=(store,key,src)=>{ if(!src) return; const im=new Image();
+    im.onload=()=>{ store[key]=im; }; im.src=src; };
+  for(const t in ASSETS.unit) put(SP.unit,+t,ASSETS.unit[t]);
+  for(const ty in ASSETS.bug) put(SP.bug,+ty,ASSETS.bug[ty]);
+}
+function blit(spr,x,y,s){ if(!spr) return;
+  const iw=spr.naturalWidth||spr.width, ih=spr.naturalHeight||spr.height||iw;
+  const w=s, h=s*(ih/iw); ctx.drawImage(spr, x-w/2, y-h/2, w, h); }
+// blit 래퍼 — 기존 시그니처 유지 (도형이든 이미지든 동일하게 처리)
+function drawUnit(x,y,r,tier){ blit(SP.unit[Math.max(1,Math.min(5,tier|0))], x,y, r*4.0); }
+function drawBug(x,y,r,type){ blit(SP.bug[Math.max(0,Math.min(2,type|0))], x,y, r*3.4); }
 // 배럴(왼쪽 목표)
 function drawBarrel(x,y,barrel){
   const w=colW*0.7, h=w*1.05;
@@ -426,7 +438,7 @@ function endGame(win){
 document.getElementById('startBtn').onclick=()=>startLevel();
 document.getElementById('againBtn').onclick=()=>startLevel();
 
-(function(){ buildSprites();
+(function(){ buildSprites(); loadAssets();
   const hc=document.getElementById('heroCv'), hx=hc.getContext('2d');
   hx.clearRect(0,0,260,260);
   const big=mkCanvas(180); drawUnitSprite(big.x,180,1);

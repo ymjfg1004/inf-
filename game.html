@@ -234,10 +234,10 @@ const MAXBUG=28; // 무리로 그릴 최대 벌레 수 (성능)
 function makeOffs(n,sp){ const a=[]; for(let i=0;i<n;i++){ const ang=i*2.39996, rad=Math.sqrt(i)*sp;
   a.push({ox:Math.cos(ang)*rad, oy:Math.sin(ang)*rad*0.72}); } return a; }
 // 내 부대: 한 칸(레인) 폭 안에서 겹쳐 채워지는 무리, 갯수 늘면 위로 쌓임
-function makeWideOffs(n){ const a=[], halfW=colW*0.45;
+function makeWideOffs(n){ const a=[], halfW=colW*0.38;
   for(let i=0;i<n;i++){
     const ox=(Math.random()*2-1)*halfW;
-    const oy=-Math.sqrt(i)*5 - Math.random()*16;
+    const oy=-Math.sqrt(i)*5.5 - Math.random()*14;
     a.push({ox, oy}); }
   return a; }
 function enemyR(e){ if(e.boss) return 54;
@@ -409,7 +409,7 @@ function render(){
   const cx=g.cannonX*W, cannonY=H-70;
   // 내 부대(갯수) — 캐논 주위에 버비 무리, 카드 먹으면 커짐
   { const pc=Math.min(g.pOffs.length,Math.max(1,Math.round(g.count))), pcy=cannonY-8;
-    ctx.fillStyle='rgba(0,0,0,.15)'; ctx.beginPath(); ctx.ellipse(cx,cannonY+16,colW*0.5,12,0,0,7); ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,.15)'; ctx.beginPath(); ctx.ellipse(cx,cannonY+16,colW*0.44,12,0,0,7); ctx.fill();
     for(let k=pc-1;k>=0;k--){ const o=g.pOffs[k]; drawUnit(cx+o.ox,pcy+o.oy,7,g.tier); } }
   ctx.fillStyle='rgba(0,0,0,.2)'; ctx.beginPath(); ctx.ellipse(cx,cannonY+30,52,12,0,0,7); ctx.fill();
   ctx.fillStyle=C.navy; roundRect(cx-34,cannonY+16,68,22,9); ctx.fill();

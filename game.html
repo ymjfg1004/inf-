@@ -230,11 +230,18 @@ const cenL=()=>(roadX+colW)/W, cenR=()=>(roadX+colW*2)/W;
 function laneOf(px){ if(px<roadX+colW) return 0; if(px<roadX+colW*2) return 1; return 2; }
 
 // ===== 스폰 =====
+const MAXBUG=28; // 무리로 그릴 최대 벌레 수 (성능)
+function makeOffs(n,sp){ const a=[]; for(let i=0;i<n;i++){ const ang=i*2.39996, rad=Math.sqrt(i)*sp;
+  a.push({ox:Math.cos(ang)*rad, oy:Math.sin(ang)*rad*0.72}); } return a; }
+function enemyR(e){ if(e.boss) return 54;
+  const shown=Math.min(MAXBUG,Math.max(1,Math.ceil(e.count))); return Math.sqrt(shown)*e.sp+e.cr; }
 function spawnEnemy(midboss){
   const t=midboss?1:(level<=1?0:(Math.random()<.75?0:1));
   const count=(midboss?30+level*6:(t===0?3+Math.floor(Math.random()*5):8+Math.floor(Math.random()*8)))+level;
   const x=cenL()+Math.random()*(cenR()-cenL());
-  g.enemies.push({x,y:-40,count,max:count,tier:t,boss:false,midboss:!!midboss,speed:(midboss?40:64+level*5),flash:0});
+  const cr=midboss?10:8, sp=cr*1.2;
+  g.enemies.push({x,y:-40,count,max:count,tier:t,boss:false,midboss:!!midboss,
+    speed:(midboss?40:64+level*5),flash:0, cr, sp, offs:makeOffs(MAXBUG,sp)});
 }
 function spawnBoss(){ const tier=bossTier(), count=Math.round((160+level*110)*(1+level*.1));
   g.boss={x:(cenL()+cenR())/2,y:-70,count,max:count,tier,boss:true,speed:12};
@@ -310,7 +317,7 @@ function update(dt){
   // 적 이동 + 충돌(가운데)
   for(let ei=g.enemies.length-1;ei>=0;ei--){ const e=g.enemies[ei];
     e.y+=e.speed*dt; if(e.flash>0) e.flash-=dt*3.5;
-    const ex=e.x*W, er=e.boss?54:(e.midboss?30:(13+Math.min(22,e.count*1.2)));
+    const ex=e.x*W, er=enemyR(e);
     for(let i=g.units.length-1;i>=0;i--){ const u=g.units[i]; if(u.done||laneOf(u.x)!==1) continue;
       const dx=u.x-ex, dy=u.y-e.y;
       if(dx*dx+dy*dy<(er+8)*(er+8)){ u.done=true; e.count-=g.tier; e.flash=.3;
@@ -363,18 +370,27 @@ function render(){
     ctx.fillText(mul?('×'+c.val):'＋1',cxpx,c.y); }
 
   // 적
-  for(const e of g.enemies){ const ex=e.x*W, er=e.boss?54:(e.midboss?30:(13+Math.min(22,e.count*1.2)));
-    ctx.fillStyle='rgba(0,0,0,.2)'; ctx.beginPath(); ctx.ellipse(ex,e.y+er*.7,er*.9,er*.3,0,0,7); ctx.fill();
-    drawBug(ex,e.y,er,e.tier);
-    if(e.flash>0){ ctx.globalAlpha=Math.min(1,e.flash); ctx.fillStyle='#fff';
-      ctx.beginPath(); ctx.arc(ex,e.y,er,0,7); ctx.fill(); ctx.globalAlpha=1; }
-    ctx.fillStyle='#fff'; ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=4;
-    ctx.font=`900 ${e.boss?28:(e.midboss?17:13)}px -apple-system,sans-serif`;
-    const t=Math.max(0,e.count).toString(); ctx.strokeText(t,ex,e.y); ctx.fillText(t,ex,e.y);
-    if(e.boss){ const bw=er*2; ctx.fillStyle='rgba(0,0,0,.4)'; roundRect(ex-bw/2,e.y-er-16,bw,8,4); ctx.fill();
+  for(const e of g.enemies){ const ex=e.x*W, er=enemyR(e);
+    if(e.boss){
+      ctx.fillStyle='rgba(0,0,0,.2)'; ctx.beginPath(); ctx.ellipse(ex,e.y+er*.7,er*.9,er*.3,0,0,7); ctx.fill();
+      drawBug(ex,e.y,er,e.tier);
+      if(e.flash>0){ ctx.globalAlpha=Math.min(1,e.flash); ctx.fillStyle='#fff';
+        ctx.beginPath(); ctx.arc(ex,e.y,er,0,7); ctx.fill(); ctx.globalAlpha=1; }
+      ctx.fillStyle='#fff'; ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=4;
+      ctx.font='900 28px -apple-system,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      const t=Math.max(0,e.count).toString(); ctx.strokeText(t,ex,e.y); ctx.fillText(t,ex,e.y);
+      const bw=er*2; ctx.fillStyle='rgba(0,0,0,.4)'; roundRect(ex-bw/2,e.y-er-16,bw,8,4); ctx.fill();
       ctx.fillStyle=C.pink; roundRect(ex-bw/2,e.y-er-16,bw*Math.max(0,e.count/e.max),8,4); ctx.fill();
       ctx.fillStyle='#fff'; ctx.globalAlpha=.9; ctx.font='800 15px -apple-system,sans-serif';
-      ctx.fillText(bossName[e.tier],ex,e.y-er-28); ctx.globalAlpha=1; } }
+      ctx.fillText(bossName[e.tier],ex,e.y-er-28); ctx.globalAlpha=1;
+    } else {
+      // 숫자 대신 갯수만큼 벌레 무리
+      const shown=Math.min(e.offs.length,Math.max(1,Math.ceil(e.count)));
+      ctx.fillStyle='rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(ex,e.y+er*.55,er*.8,er*.26,0,0,7); ctx.fill();
+      for(let k=0;k<shown;k++){ const o=e.offs[k]; drawBug(ex+o.ox,e.y+o.oy,e.cr,e.tier); }
+      if(e.flash>0){ ctx.globalAlpha=Math.min(.7,e.flash); ctx.fillStyle='#fff';
+        ctx.beginPath(); ctx.arc(ex,e.y,er*.85,0,7); ctx.fill(); ctx.globalAlpha=1; }
+    } }
 
   for(const u of g.units) drawUnit(u.x,u.y,7,g.tier);
 

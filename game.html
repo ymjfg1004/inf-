@@ -201,13 +201,13 @@ function drawBarrel(x,y,barrel){
 
 // ===== 레벨 =====
 function makeBarrel(toTier){ const hp=Math.round((8*toTier*toTier+level*6)*(0.6+Math.random()*0.9));
-  return {toTier,hp,max:hp,y:-42,speed:42+level*3,x:(roadX+colW*0.5)/W}; }
+  return {toTier,hp,max:hp,y:-42,speed:52+level*3,x:(roadX+colW*0.5)/W}; }
 function startLevel(){
   state=State.PLAY;
   g.cannonX=.5; g.targetX=.5; g.units=[]; g.enemies=[]; g.particles=[]; g.floats=[];
   g.count=1; g.tier=1; g.barrel=null; g.barrelTimer=0.8;
   g.fireTimer=0; g.spawnTimer=2.6; g.bossSpawned=false; g.boss=null; g.shake=0; g.flash=0;
-  g.waveLeft=10+level*3; g.intro=3.6; g.cards=[]; g.cardTimer=0.6;
+  g.waveLeft=18+level*4; g.intro=3.6; g.cards=[]; g.cardTimer=0.6;
   document.getElementById('endScreen').classList.add('hidden');
   document.getElementById('startScreen').classList.add('hidden');
 }
@@ -234,7 +234,7 @@ function spawnEnemy(midboss){
   const t=midboss?1:(level<=1?0:(Math.random()<.75?0:1));
   const count=(midboss?30+level*6:(t===0?3+Math.floor(Math.random()*5):8+Math.floor(Math.random()*8)))+level;
   const x=cenL()+Math.random()*(cenR()-cenL());
-  g.enemies.push({x,y:-40,count,max:count,tier:t,boss:false,midboss:!!midboss,speed:(midboss?34:52+level*4),flash:0});
+  g.enemies.push({x,y:-40,count,max:count,tier:t,boss:false,midboss:!!midboss,speed:(midboss?40:64+level*5),flash:0});
 }
 function spawnBoss(){ const tier=bossTier(), count=Math.round((160+level*110)*(1+level*.1));
   g.boss={x:(cenL()+cenR())/2,y:-70,count,max:count,tier,boss:true,speed:12};
@@ -259,9 +259,10 @@ function update(dt){
   // 적 스폰(가운데, 물량 많이)
   if(g.intro>0) g.intro-=dt;
   if(!g.bossSpawned){ g.spawnTimer-=dt;
-    if(g.spawnTimer<=0 && g.waveLeft>0){ const mid=(g.waveLeft%5===0);
-      g.spawnTimer=mid?2.0:Math.max(.2,0.6-level*.05); spawnEnemy(mid); g.waveLeft--;
-      if(!mid && Math.random()<.6 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; } }
+    if(g.spawnTimer<=0 && g.waveLeft>0){ const mid=(g.waveLeft%6===0);
+      g.spawnTimer=mid?1.8:Math.max(.14,0.42-level*.05); spawnEnemy(mid); g.waveLeft--;
+      if(!mid){ if(Math.random()<.8 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; }
+                if(Math.random()<.5 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; } } }
     if(g.waveLeft<=0 && g.enemies.length===0) spawnBoss();
   }
 
@@ -286,11 +287,11 @@ function update(dt){
 
   // 오른쪽: 내려오는 +1 / (가끔)×n 카드 — 유닛으로 맞춰야 획득, 놓치면 사라짐
   g.cardTimer-=dt;
-  if(g.cardTimer<=0){ g.cardTimer=0.55+Math.random()*0.35;
+  if(g.cardTimer<=0){ g.cardTimer=0.95+Math.random()*0.7;
     const mul=Math.random()<0.07;
     const cxp=(roadX+colW*2.5)+(Math.random()*2-1)*colW*0.18;
     g.cards.push({x:cxp/W, y:-24, type:mul?'mul':'add', val:mul?(2+Math.floor(Math.random()*2)):1,
-      speed:105+level*7}); }
+      speed:130+level*8}); }
   const cw=colW*0.72;
   for(let ci=g.cards.length-1;ci>=0;ci--){ const c=g.cards[ci]; c.y+=c.speed*dt;
     const cxpx=c.x*W; let got=false;

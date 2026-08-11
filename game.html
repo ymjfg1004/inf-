@@ -205,7 +205,7 @@ function makeBarrel(toTier){ const hp=Math.round((8*toTier*toTier+level*6)*(0.6+
 function startLevel(){
   state=State.PLAY;
   g.cannonX=.5; g.targetX=.5; g.units=[]; g.enemies=[]; g.particles=[]; g.floats=[];
-  g.count=1; g.tier=1; g.barrel=null; g.barrelTimer=0.8; g.pOffs=makeOffs(60,8.5);
+  g.count=1; g.tier=1; g.barrel=null; g.barrelTimer=0.8; g.pOffs=makeWideOffs(60);
   g.fireTimer=0; g.spawnTimer=2.6; g.bossSpawned=false; g.boss=null; g.shake=0; g.flash=0;
   g.waveLeft=18+level*4; g.intro=3.6; g.cards=[]; g.cardTimer=0.6;
   document.getElementById('endScreen').classList.add('hidden');
@@ -233,6 +233,10 @@ function laneOf(px){ if(px<roadX+colW) return 0; if(px<roadX+colW*2) return 1; r
 const MAXBUG=28; // 무리로 그릴 최대 벌레 수 (성능)
 function makeOffs(n,sp){ const a=[]; for(let i=0;i<n;i++){ const ang=i*2.39996, rad=Math.sqrt(i)*sp;
   a.push({ox:Math.cos(ang)*rad, oy:Math.sin(ang)*rad*0.72}); } return a; }
+// 내 부대: 가로로 넓게 퍼지는 전열(줄) 배치
+function makeWideOffs(n){ const a=[], perRow=14, dx=(roadW*0.62)/(perRow-1), dy=dx*0.9;
+  for(let i=0;i<n;i++){ const row=Math.floor(i/perRow), idx=i%perRow;
+    a.push({ox:(idx-(perRow-1)/2)*dx + (row%2?dx/2:0), oy:-row*dy}); } return a; }
 function enemyR(e){ if(e.boss) return 54;
   const shown=Math.min(MAXBUG,Math.max(1,Math.ceil(e.count))); return Math.sqrt(shown)*e.sp+e.cr; }
 function spawnEnemy(midboss){
@@ -396,9 +400,9 @@ function render(){
 
   const cx=g.cannonX*W, cannonY=H-70;
   // 내 부대(갯수) — 캐논 주위에 버비 무리, 카드 먹으면 커짐
-  { const pc=Math.min(g.pOffs.length,Math.max(1,Math.round(g.count))), pcy=cannonY-14;
-    ctx.fillStyle='rgba(0,0,0,.16)'; ctx.beginPath(); ctx.ellipse(cx,cannonY+14,44,13,0,0,7); ctx.fill();
-    for(let k=pc-1;k>=0;k--){ const o=g.pOffs[k]; drawUnit(cx+o.ox,pcy-Math.abs(o.oy)*0.7,7,g.tier); } }
+  { const pc=Math.min(g.pOffs.length,Math.max(1,Math.round(g.count))), pcy=cannonY-8;
+    ctx.fillStyle='rgba(0,0,0,.15)'; ctx.beginPath(); ctx.ellipse(cx,cannonY+16,roadW*0.34,12,0,0,7); ctx.fill();
+    for(let k=pc-1;k>=0;k--){ const o=g.pOffs[k]; drawUnit(cx+o.ox,pcy+o.oy,7,g.tier); } }
   ctx.fillStyle='rgba(0,0,0,.2)'; ctx.beginPath(); ctx.ellipse(cx,cannonY+34,44,12,0,0,7); ctx.fill();
   ctx.fillStyle=C.navy; roundRect(cx-34,cannonY+6,68,34,10); ctx.fill();
   ctx.fillStyle=tierColor[Math.min(5,g.tier)]; roundRect(cx-16,cannonY-30,32,44,10); ctx.fill();

@@ -74,7 +74,7 @@ const State={START:0,PLAY:1,END:2};
 let state=State.START, level=1, best=+(localStorage.getItem('buggle_top_best')||0);
 
 const g={ cannonX:.5, targetX:.5, units:[], enemies:[], particles:[], floats:[], cards:[], pOffs:[],
-  count:1, tier:1, barrel:null, barrelTimer:0, fireTimer:0, spawnTimer:0, waveLeft:0, cardTimer:0, intro:0, midTimer:0,
+  count:1, tier:1, barrel:null, barrelTimer:0, fireTimer:0, spawnTimer:0, waveLeft:0, cardTimer:0, intro:0, midTimer:0, stageTime:0,
   bossSpawned:false, boss:null, shake:0, flash:0 };
 
 // ===== 드로잉 =====
@@ -207,7 +207,7 @@ function barrelDelay(){ return 1.4 + level*1.1; }
 function startLevel(){
   state=State.PLAY;
   g.cannonX=.5; g.targetX=.5; drag=false; g.units=[]; g.enemies=[]; g.particles=[]; g.floats=[];
-  g.count=1; g.tier=1; g.barrel=null; g.barrelTimer=1.0+level*0.4; g.pOffs=makeWideOffs(60);
+  g.count=1+(level-1)*3; g.tier=1; g.barrel=null; g.barrelTimer=1.0+level*0.4; g.pOffs=makeWideOffs(60); g.stageTime=0;
   g.fireTimer=0; g.spawnTimer=2.6; g.bossSpawned=false; g.boss=null; g.shake=0; g.flash=0;
   g.waveLeft=55+level*12; g.intro=3.6; g.cards=[]; g.cardTimer=0.6; g.midTimer=4.0;
   document.getElementById('endScreen').classList.add('hidden');
@@ -242,18 +242,20 @@ function makeWideOffs(n){ const a=[], halfW=colW*0.38;
     const oy=-Math.sqrt(i)*5.5 - Math.random()*14;
     a.push({ox, oy}); }
   return a; }
+function warmup(){ return 0.35+0.65*Math.min(1,g.stageTime/8); } // 스테이지 초반 완만하게
 function enemyR(e){ if(e.boss) return 54;
   if(e.midboss) return 26+Math.min(20,e.count*0.28);
   const shown=Math.min(MAXBUG,Math.max(1,Math.ceil(e.count))); return Math.sqrt(shown)*e.sp+e.cr; }
 function spawnEnemy(midboss){
   const t=midboss?1:(level<=1?0:(Math.random()<.75?0:1));
-  const count=(midboss?70+level*14:(t===0?5+Math.floor(Math.random()*7):12+Math.floor(Math.random()*12)))+level*2;
+  const count=(midboss?60+level*9:(t===0?5+Math.floor(Math.random()*7):12+Math.floor(Math.random()*12)))+level;
   const x=cenL()+Math.random()*(cenR()-cenL());
   const cr=midboss?10:8, sp=cr*1.2;
+  const spd=midboss?38:(54+level*3)*warmup();
   g.enemies.push({x,y:-40,count,max:count,tier:t,boss:false,midboss:!!midboss,
-    speed:(midboss?40:64+level*5),flash:0, cr, sp, offs:makeOffs(MAXBUG,sp)});
+    speed:spd,flash:0, cr, sp, offs:makeOffs(MAXBUG,sp)});
 }
-function spawnBoss(){ const tier=bossTier(), count=Math.round((240+level*170)*(1+level*.15));
+function spawnBoss(){ const tier=bossTier(), count=Math.round((200+level*120)*(1+level*.08));
   g.boss={x:0.5,y:-70,count,max:count,tier,boss:true,speed:9,phase:0,minionT:1.8,flash:0};
   g.enemies.push(g.boss); g.bossSpawned=true; }
 
@@ -264,7 +266,7 @@ function loop(now){ const dt=Math.min((now-lastT)/1000,.05); lastT=now;
 
 function update(dt){
   g.cannonX+=(g.targetX-g.cannonX)*Math.min(1,dt*14);
-  g.flash*=Math.pow(.001,dt); g.shake*=Math.pow(.0001,dt);
+  g.flash*=Math.pow(.001,dt); g.shake*=Math.pow(.0001,dt); g.stageTime+=dt;
   const cx=g.cannonX*W, cannonY=H-70;
 
   // 발사 — 캐릭터 하나당 한 발씩, 각자 위치에서
@@ -277,10 +279,10 @@ function update(dt){
   // 적 스폰(가운데, 물량 많이)
   if(g.intro>0) g.intro-=dt;
   if(!g.bossSpawned){ g.spawnTimer-=dt;
-    if(g.spawnTimer<=0 && g.waveLeft>0){
-      g.spawnTimer=Math.max(.14,0.34-level*.03); spawnEnemy(false); g.waveLeft--;
-      if(Math.random()<.8 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; }
-      if(Math.random()<.5 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; } }
+    if(g.spawnTimer<=0 && g.waveLeft>0){ const wm=warmup();
+      g.spawnTimer=Math.max(.16,0.36-level*.025)*(1.9-0.9*wm); spawnEnemy(false); g.waveLeft--;
+      if(Math.random()<.8*wm && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; }
+      if(Math.random()<.5*wm && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; } }
     // 미니보스(글리치)를 중간중간 등장
     g.midTimer-=dt;
     if(g.midTimer<=0 && g.waveLeft>0){ g.midTimer=Math.max(3.0,5.5-level*0.2); spawnEnemy(true); }

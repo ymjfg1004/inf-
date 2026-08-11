@@ -1,0 +1,502 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Crowd Rush — 게이트 러너</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; background:#0b1020; overflow:hidden; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  #wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+  canvas { display:block; touch-action:none; }
+  .overlay {
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:18px;
+    background:rgba(6,10,25,.82); backdrop-filter:blur(6px); color:#fff; text-align:center; padding:24px;
+    z-index:10;
+  }
+  .overlay h1 { font-size:34px; font-weight:800; letter-spacing:-.5px; }
+  .overlay p { font-size:15px; opacity:.82; line-height:1.55; max-width:320px; }
+  .overlay .big { font-size:52px; font-weight:900; }
+  .btn {
+    margin-top:6px; padding:15px 42px; border:none; border-radius:16px; cursor:pointer;
+    font-size:18px; font-weight:800; color:#fff;
+    background:linear-gradient(135deg,#ff5f6d,#ff2d55); box-shadow:0 8px 24px rgba(255,45,85,.45);
+    transition:transform .08s;
+  }
+  .btn:active { transform:scale(.95); }
+  .win .big { color:#4ade80; } .lose .big { color:#f87171; }
+  .hidden { display:none !important; }
+  .hint { font-size:13px; opacity:.6; }
+</style>
+
+<div id="wrap"><canvas id="cv"></canvas></div>
+
+<div id="startScreen" class="overlay">
+  <h1>⚔️ Crowd Rush</h1>
+  <p>부대가 앞으로 달립니다. <b>손가락(또는 마우스)을 좌우로 드래그</b>해서 좋은 게이트를 통과하세요.<br>
+     <span style="color:#4ade80">+ / ×</span> 는 병력 증가, <span style="color:#f87171">− / ÷</span> 는 감소!<br>
+     최대한 병력을 불려서 <b>보스</b>를 무찌르세요.</p>
+  <button class="btn" id="startBtn">게임하기 ▶</button>
+  <div class="hint">TOP LORDS · Mob Control 스타일 프로토타입</div>
+</div>
+
+<div id="endScreen" class="overlay hidden">
+  <h1 id="endTitle"></h1>
+  <div class="big" id="endBig"></div>
+  <p id="endMsg"></p>
+  <button class="btn" id="againBtn">다시하기 ↻</button>
+</div>
+
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+// ---------- 화면 크기 (세로 모바일 비율) ----------
+let W, H, DPR;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  const maxW = 480;
+  const availW = Math.min(window.innerWidth, maxW);
+  const availH = window.innerHeight;
+  // 9:16 비율 유지
+  let w = availW, h = w * 16/9;
+  if (h > availH){ h = availH; w = h * 9/16; }
+  cv.style.width = w+'px'; cv.style.height = h+'px';
+  cv.width = w*DPR; cv.height = h*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  W = w; H = h;
+}
+window.addEventListener('resize', resize); resize();
+
+// ---------- 게임 상태 ----------
+const State = { START:0, PLAY:1, BATTLE:2, END:3 };
+let state = State.START;
+let level = 1;
+let best = +(localStorage.getItem('crowdrush_best')||0);
+
+const game = {
+  count: 0,          // 현재 병력
+  displayCount: 0,   // 부드럽게 보간되는 표시값
+  laneX: 0.5,        // 0..1, 부대의 가로 위치
+  targetLaneX: 0.5,
+  scroll: 0,         // 진행 거리
+  speed: 0,
+  gates: [],         // 남은 게이트 행
+  boss: null,
+  finished: false,
+  troops: [],        // 개별 병사 위치(연출)
+  particles: [],
+  flash: 0,
+};
+
+// 게이트 연산 종류
+function makeGateRow(z){
+  // 두 개의 선택지 (왼/오)
+  const kinds = pickPair(z);
+  return {
+    z,                 // 월드 진행 위치
+    passed: false,
+    options: kinds,    // [left, right]
+  };
+}
+
+function pickPair(z){
+  // 난이도에 따라 값 스케일
+  const t = z; // 뒤로 갈수록 큰 값
+  function op(favorable){
+    const r = Math.random();
+    if (favorable){
+      if (r < 0.45) return { type:'add', val: 5 + Math.floor(Math.random()* (8+level*2)) };
+      if (r < 0.85) return { type:'mul', val: 2 + Math.floor(Math.random()*2) }; // x2,x3
+      return { type:'mul', val: 2 };
+    } else {
+      if (r < 0.5) return { type:'sub', val: 5 + Math.floor(Math.random()*(10+level*3)) };
+      if (r < 0.8) return { type:'div', val: 2 };
+      return { type:'sub', val: 10 + Math.floor(Math.random()*15) };
+    }
+  }
+  // 한쪽은 대체로 좋고 한쪽은 나쁘게 (가끔 둘 다 좋음)
+  const bothGood = Math.random() < 0.25;
+  let left, right;
+  if (bothGood){ left = op(true); right = op(true); }
+  else if (Math.random()<0.5){ left = op(true); right = op(false); }
+  else { left = op(false); right = op(true); }
+  return [left, right];
+}
+
+function gateColor(o){
+  return (o.type==='add'||o.type==='mul') ? '#2ea6ff' : '#ff3b5c';
+}
+function gateLabel(o){
+  const s = {add:'+', mul:'×', sub:'−', div:'÷'}[o.type];
+  return s + o.val;
+}
+function applyGate(o){
+  let c = game.count;
+  if (o.type==='add') c += o.val;
+  else if (o.type==='mul') c *= o.val;
+  else if (o.type==='sub') c -= o.val;
+  else if (o.type==='div') c = Math.floor(c / o.val);
+  game.count = Math.max(0, Math.round(c));
+}
+
+// ---------- 레벨 시작 ----------
+function startLevel(){
+  state = State.PLAY;
+  game.count = 20;
+  game.displayCount = 20;
+  game.laneX = 0.5; game.targetLaneX = 0.5;
+  game.scroll = 0;
+  game.speed = 150;             // px/s
+  game.finished = false;
+  game.flash = 0;
+  game.particles = [];
+  game.gates = [];
+  const rows = 7 + level;      // 게이트 행 수
+  for (let i=0;i<rows;i++){
+    game.gates.push(makeGateRow(400 + i*260));
+  }
+  const lastZ = 400 + rows*260 + 420;
+  // 보스 HP: 대략 도달 가능한 병력에 비례
+  const bossHP = Math.round((120 + level*90) * (1 + level*0.15));
+  game.boss = { z:lastZ, hp:bossHP, maxHp:bossHP, x:0.5, defeated:false, dead:0 };
+  // 병사 연출용 위치
+  game.troops = [];
+  for (let i=0;i<200;i++){
+    game.troops.push({ ox:(Math.random()*2-1), oy:(Math.random()*2-1) });
+  }
+  document.getElementById('endScreen').classList.add('hidden');
+  document.getElementById('startScreen').classList.add('hidden');
+}
+
+// ---------- 입력 (드래그로 좌우) ----------
+let dragging=false, dragStartX=0, laneStart=0;
+function pointerDown(x){ dragging=true; dragStartX=x; laneStart=game.targetLaneX; }
+function pointerMove(x){
+  if(!dragging) return;
+  const dx = (x - dragStartX) / (cv.clientWidth*0.6);
+  game.targetLaneX = Math.max(0.12, Math.min(0.88, laneStart + dx));
+}
+function pointerUp(){ dragging=false; }
+
+cv.addEventListener('mousedown', e=>pointerDown(e.clientX));
+window.addEventListener('mousemove', e=>pointerMove(e.clientX));
+window.addEventListener('mouseup', pointerUp);
+cv.addEventListener('touchstart', e=>{ e.preventDefault(); pointerDown(e.touches[0].clientX); }, {passive:false});
+cv.addEventListener('touchmove', e=>{ e.preventDefault(); pointerMove(e.touches[0].clientX); }, {passive:false});
+cv.addEventListener('touchend', pointerUp);
+
+// ---------- 좌표 변환 (의사 3D 원근) ----------
+// 월드 z(진행거리) 기준으로 화면 좌표 계산. 부대는 화면 하단 고정, 게이트는 위에서 다가옴.
+const ROAD_TOP = 0.10;      // 지평선 y 비율
+const ROAD_BOT = 0.82;      // 부대 y 비율
+const PLAYER_Z_OFFSET = 120; // 부대의 월드 z는 scroll 값
+
+function project(z, laneX){
+  // 부대와의 상대 거리
+  const rel = z - game.scroll;              // 0이면 부대 위치, 클수록 멀리(위)
+  const maxView = 900;
+  let p = 1 - Math.min(Math.max(rel,0), maxView)/maxView; // 1=가까움(아래), 0=멂(위)
+  // 원근 곡선
+  const persp = Math.pow(p, 1.35);
+  const y = H*(ROAD_TOP + (ROAD_BOT-ROAD_TOP)*persp);
+  const roadHalf = (0.06 + 0.40*persp) * W;  // 도로 폭(원근)
+  const cx = W*0.5 + (laneX-0.5)*roadHalf*2;
+  const scale = 0.18 + 0.9*persp;
+  return { x:cx, y, scale, roadHalf, persp, rel };
+}
+
+// ---------- 렌더링 ----------
+function drawBackground(){
+  // 하늘
+  const g = ctx.createLinearGradient(0,0,0,H*ROAD_BOT);
+  g.addColorStop(0,'#1b2a4a'); g.addColorStop(1,'#3a5a8c');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // 지평선 아래(바닥)
+  ctx.fillStyle='#0c1226'; ctx.fillRect(0,H*ROAD_TOP,W,H);
+
+  // 도로 (사다리꼴)
+  const top = project(game.scroll+900, 0.5);
+  const bot = project(game.scroll, 0.5);
+  ctx.beginPath();
+  ctx.moveTo(W*0.5-top.roadHalf, top.y);
+  ctx.lineTo(W*0.5+top.roadHalf, top.y);
+  ctx.lineTo(W*0.5+bot.roadHalf, bot.y);
+  ctx.lineTo(W*0.5-bot.roadHalf, bot.y);
+  ctx.closePath();
+  const rg = ctx.createLinearGradient(0,top.y,0,bot.y);
+  rg.addColorStop(0,'#5b6b86'); rg.addColorStop(1,'#8a99b3');
+  ctx.fillStyle=rg; ctx.fill();
+
+  // 가운데 점선
+  ctx.strokeStyle='rgba(255,255,255,.55)';
+  for(let z=game.scroll% 130; z<900; z+=130){
+    const a=project(game.scroll+z,0.5), b=project(game.scroll+z+55,0.5);
+    ctx.lineWidth=Math.max(1,a.scale*4);
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+  }
+}
+
+function drawGates(){
+  // 먼 것부터 (위에서부터) 그림
+  for(let i=game.gates.length-1;i>=0;i--){
+    const row = game.gates[i];
+    if(row.passed) continue;
+    const rel = row.z - game.scroll;
+    if(rel < -40 || rel > 900) continue;
+    drawGateRow(row);
+  }
+}
+
+function drawGateRow(row){
+  const p = project(row.z, 0.5);
+  const h = 88*p.scale;
+  const gap = p.roadHalf; // 좌우 폭
+  const laneXs = [0.5 - 0.24, 0.5 + 0.24];
+  for(let s=0;s<2;s++){
+    const o = row.options[s];
+    const proj = project(row.z, laneXs[s]);
+    const w = p.roadHalf*0.86;
+    const x = proj.x, y = proj.y;
+    // 패널
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = gateColor(o);
+    roundRect(x - w/2, y - h, w, h, 6*p.scale);
+    ctx.fill();
+    // 위쪽 밝은 테두리
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(255,255,255,.25)';
+    roundRect(x - w/2, y - h, w, 8*p.scale, 4*p.scale); ctx.fill();
+    // 라벨
+    ctx.fillStyle = '#fff';
+    ctx.font = `800 ${Math.max(11,34*p.scale)}px -apple-system,sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(gateLabel(o), x, y - h*0.5);
+  }
+  ctx.globalAlpha=1;
+}
+
+function drawCrowd(){
+  const base = project(game.scroll, game.laneX);
+  const n = Math.min(game.count, 160);
+  const spread = base.roadHalf*0.8;
+  ctx.fillStyle = '#ffd34d';
+  for(let i=0;i<n;i++){
+    const t = game.troops[i%game.troops.length];
+    const px = base.x + t.ox*spread*0.5;
+    const py = base.y - 6 - Math.abs(t.oy)*36 - (i%6)*3;
+    const s = base.scale*(0.8+0.2*Math.random()*0);
+    drawSoldier(px, py, 9*base.scale, '#3a7bff');
+  }
+  // 병력 수 라벨
+  ctx.fillStyle='#fff';
+  ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=4;
+  ctx.font='900 40px -apple-system,sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  const label = Math.round(game.displayCount).toString();
+  ctx.strokeText(label, base.x, base.y+46);
+  ctx.fillText(label, base.x, base.y+46);
+}
+
+function drawSoldier(x,y,r,color){
+  ctx.fillStyle=color;
+  // 몸통
+  ctx.beginPath(); ctx.ellipse(x,y,r*0.6,r*1.1,0,0,7); ctx.fill();
+  // 머리
+  ctx.fillStyle='#f3c9a0';
+  ctx.beginPath(); ctx.arc(x,y-r*1.2,r*0.55,0,7); ctx.fill();
+}
+
+function drawBoss(){
+  const b = game.boss;
+  if(!b) return;
+  const rel = b.z - game.scroll;
+  if(rel>1000) return;
+  const p = project(b.z, 0.5);
+  const size = 60*p.scale*2.2;
+  const x=p.x, y=p.y;
+  // 그림자
+  ctx.fillStyle='rgba(0,0,0,.3)';
+  ctx.beginPath(); ctx.ellipse(x,y+6,size*0.5,size*0.16,0,0,7); ctx.fill();
+  // 몸통 (거대 병사)
+  const alive = 1 - b.dead;
+  ctx.globalAlpha = Math.max(0.15, alive);
+  ctx.fillStyle='#8b1a2b';
+  roundRect(x-size*0.32, y-size*1.5, size*0.64, size*1.5, size*0.1); ctx.fill();
+  ctx.fillStyle='#c92a3f';
+  ctx.beginPath(); ctx.arc(x, y-size*1.55, size*0.32,0,7); ctx.fill();
+  // 뿔
+  ctx.fillStyle='#ffcf4d';
+  ctx.beginPath(); ctx.moveTo(x-size*0.3,y-size*1.75); ctx.lineTo(x-size*0.45,y-size*2.1); ctx.lineTo(x-size*0.15,y-size*1.85); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x+size*0.3,y-size*1.75); ctx.lineTo(x+size*0.45,y-size*2.1); ctx.lineTo(x+size*0.15,y-size*1.85); ctx.fill();
+  ctx.globalAlpha=1;
+  // HP 라벨
+  if(!b.defeated){
+    ctx.fillStyle='#fff'; ctx.strokeStyle='rgba(0,0,0,.55)'; ctx.lineWidth=5;
+    ctx.font=`900 ${Math.max(18,52*p.scale)}px -apple-system,sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    const hpTxt = Math.max(0,Math.round(b.hp)).toString();
+    ctx.strokeText(hpTxt, x, y-size*0.7);
+    ctx.fillText(hpTxt, x, y-size*0.7);
+    // HP 바
+    const barW=size*0.8;
+    ctx.fillStyle='rgba(0,0,0,.5)'; roundRect(x-barW/2,y-size*1.9,barW,7*p.scale,3); ctx.fill();
+    ctx.fillStyle='#ff4d6d'; roundRect(x-barW/2,y-size*1.9,barW*(b.hp/b.maxHp),7*p.scale,3); ctx.fill();
+  }
+}
+
+function drawParticles(){
+  for(const pt of game.particles){
+    ctx.globalAlpha=Math.max(0,pt.life);
+    ctx.fillStyle=pt.color;
+    ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.r,0,7); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+function roundRect(x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+
+// ---------- HUD ----------
+function drawHUD(){
+  ctx.fillStyle='rgba(0,0,0,.35)';
+  roundRect(10,10,120,34,10); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='700 16px -apple-system,sans-serif';
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.fillText('레벨 '+level, 22, 27);
+
+  ctx.fillStyle='rgba(0,0,0,.35)';
+  roundRect(W-130,10,120,34,10); ctx.fill();
+  ctx.fillStyle='#ffd34d'; ctx.textAlign='right';
+  ctx.fillText('최고 '+best, W-22, 27);
+}
+
+// ---------- 업데이트 ----------
+let lastT=performance.now();
+function loop(now){
+  const dt=Math.min((now-lastT)/1000, 0.05); lastT=now;
+  if(state===State.PLAY || state===State.BATTLE) update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+function update(dt){
+  // 부드러운 레인 이동
+  game.laneX += (game.targetLaneX - game.laneX)*Math.min(1,dt*12);
+  // 표시 카운트 보간
+  game.displayCount += (game.count - game.displayCount)*Math.min(1,dt*10);
+
+  if(state===State.PLAY){
+    game.scroll += game.speed*dt;
+
+    // 게이트 통과 판정
+    for(const row of game.gates){
+      if(row.passed) continue;
+      if(game.scroll >= row.z){
+        row.passed=true;
+        const side = game.laneX < 0.5 ? 0 : 1;
+        const o = row.options[side];
+        applyGate(o);
+        game.flash = (o.type==='add'||o.type==='mul') ? 0.25 : -0.25;
+        spawnGateBurst(o);
+        if(game.count<=0){ return endGame(false); }
+      }
+    }
+    // 보스 도달 → 전투
+    if(game.scroll >= game.boss.z - 40){
+      state=State.BATTLE;
+      game.speed=0;
+    }
+  }
+  else if(state===State.BATTLE){
+    const b=game.boss;
+    // 병력이 보스를 갈아냄
+    const dps = Math.max(30, game.count*2.2);
+    b.hp -= dps*dt;
+    // 서로 소모: 병력도 보스 초기 위협만큼 소모되며 감소 연출
+    game.count -= (b.maxHp/ (b.maxHp+game.count+1)) * dps*dt*0.12;
+    game.count=Math.max(0,game.count);
+    b.dead = 1 - Math.max(0,b.hp)/b.maxHp;
+    spawnBattleParticles();
+    if(b.hp<=0){ b.defeated=true; return endGame(true); }
+    if(game.count<=0.5){ return endGame(false); }
+  }
+
+  // 파티클
+  game.flash *= Math.pow(0.001,dt);
+  for(const pt of game.particles){ pt.x+=pt.vx*dt; pt.y+=pt.vy*dt; pt.vy+=400*dt; pt.life-=dt*1.4; }
+  game.particles=game.particles.filter(p=>p.life>0);
+}
+
+function spawnGateBurst(o){
+  const base=project(game.scroll,game.laneX);
+  const good=(o.type==='add'||o.type==='mul');
+  for(let i=0;i<16;i++){
+    game.particles.push({
+      x:base.x, y:base.y-10, vx:(Math.random()*2-1)*140, vy:-Math.random()*220-40,
+      r:3+Math.random()*3, life:0.6+Math.random()*0.4,
+      color: good?'#4ade80':'#f87171'
+    });
+  }
+}
+function spawnBattleParticles(){
+  const b=game.boss; const p=project(b.z,0.5);
+  for(let i=0;i<3;i++){
+    game.particles.push({
+      x:p.x+(Math.random()*2-1)*40, y:p.y-40-Math.random()*60,
+      vx:(Math.random()*2-1)*80, vy:-Math.random()*120,
+      r:2+Math.random()*3, life:0.4+Math.random()*0.3,
+      color: Math.random()<0.5?'#ffd34d':'#ff6b3d'
+    });
+  }
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+  drawBackground();
+  drawGates();
+  drawBoss();
+  drawCrowd();
+  drawParticles();
+  drawHUD();
+  // 화면 플래시
+  if(Math.abs(game.flash)>0.01){
+    ctx.fillStyle = game.flash>0 ? `rgba(74,222,128,${game.flash})` : `rgba(248,113,113,${-game.flash})`;
+    ctx.fillRect(0,0,W,H);
+  }
+}
+
+// ---------- 종료 ----------
+function endGame(win){
+  state=State.END;
+  const es=document.getElementById('endScreen');
+  const title=document.getElementById('endTitle');
+  const big=document.getElementById('endBig');
+  const msg=document.getElementById('endMsg');
+  es.classList.remove('hidden','win','lose');
+  if(win){
+    es.classList.add('win');
+    title.textContent='🏆 승리!';
+    big.textContent='LEVEL '+level+' 클리어';
+    msg.textContent='보스를 무찔렀습니다! 다음 레벨은 더 강한 보스가 기다립니다.';
+    document.getElementById('againBtn').textContent='다음 레벨 ▶';
+    level++;
+    if(level-1>best){ best=level-1; localStorage.setItem('crowdrush_best',best); }
+  } else {
+    es.classList.add('lose');
+    title.textContent='💀 패배';
+    big.textContent='병력 전멸';
+    msg.textContent='좋은 게이트(파란 +/×)를 골라 병력을 더 키워보세요!';
+    document.getElementById('againBtn').textContent='다시하기 ↻';
+    level=1;
+  }
+}
+
+// ---------- 버튼 ----------
+document.getElementById('startBtn').onclick=()=>startLevel();
+document.getElementById('againBtn').onclick=()=>startLevel();
+
+requestAnimationFrame(loop);
+</script>

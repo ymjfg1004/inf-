@@ -202,10 +202,12 @@ function drawBarrel(x,y,barrel){
 // ===== 레벨 =====
 function makeBarrel(toTier){ const hp=Math.round((8*toTier*toTier+level*6)*(0.6+Math.random()*0.9));
   return {toTier,hp,max:hp,y:-42,speed:52+level*3,x:(roadX+colW*0.5)/W}; }
+// 단계가 높을수록 배럴(등급업)이 드물게 나옴
+function barrelDelay(){ return 1.4 + level*1.1; }
 function startLevel(){
   state=State.PLAY;
   g.cannonX=.5; g.targetX=.5; g.units=[]; g.enemies=[]; g.particles=[]; g.floats=[];
-  g.count=1; g.tier=1; g.barrel=null; g.barrelTimer=0.8; g.pOffs=makeWideOffs(60);
+  g.count=1; g.tier=1; g.barrel=null; g.barrelTimer=1.0+level*0.4; g.pOffs=makeWideOffs(60);
   g.fireTimer=0; g.spawnTimer=2.6; g.bossSpawned=false; g.boss=null; g.shake=0; g.flash=0;
   g.waveLeft=18+level*4; g.intro=3.6; g.cards=[]; g.cardTimer=0.6;
   document.getElementById('endScreen').classList.add('hidden');
@@ -295,9 +297,9 @@ function update(dt){
       if(Math.abs(u.y-b.y)<38){ u.done=true; b.hp-=g.tier; hit(u.x,b.y,C.yellow);
         if(b.hp<=0){ g.tier=b.toTier; g.flash=.2; boom(bx,b.y,1);
           g.floats.push({x:bx,y:b.y,txt:'등급 UP! '+tierName[Math.min(5,g.tier)],life:1.3,color:C.yellow});
-          g.barrel=null; g.barrelTimer=0.9; break; } } }
+          g.barrel=null; g.barrelTimer=barrelDelay(); break; } } }
     if(g.barrel && g.barrel.y>cannonY-24){ g.floats.push({x:bx,y:cannonY-42,txt:'놓침!',life:.7,color:'#ffd873'});
-      g.barrel=null; g.barrelTimer=0.7; }
+      g.barrel=null; g.barrelTimer=barrelDelay()*0.6; }
   }
 
   // 오른쪽: 내려오는 +1 / (가끔)×n 카드 — 유닛으로 맞춰야 획득, 놓치면 사라짐

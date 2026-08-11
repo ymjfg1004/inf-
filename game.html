@@ -73,7 +73,7 @@ resize();
 const State={START:0,PLAY:1,END:2};
 let state=State.START, level=1, best=+(localStorage.getItem('buggle_top_best')||0);
 
-const g={ cannonX:.5, targetX:.5, units:[], enemies:[], particles:[], floats:[], cards:[],
+const g={ cannonX:.5, targetX:.5, units:[], enemies:[], particles:[], floats:[], cards:[], pOffs:[],
   count:1, tier:1, barrel:null, barrelTimer:0, fireTimer:0, spawnTimer:0, waveLeft:0, cardTimer:0, intro:0,
   bossSpawned:false, boss:null, shake:0, flash:0 };
 

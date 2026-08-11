@@ -172,8 +172,8 @@ function startLevel(){
   state=State.PLAY;
   g.cannonX=.5; g.targetX=.5; g.units=[]; g.enemies=[]; g.particles=[]; g.floats=[];
   g.count=1; g.tier=1; g.barrel=makeBarrel(2);
-  g.fireTimer=0; g.spawnTimer=1.2; g.bossSpawned=false; g.boss=null; g.shake=0; g.flash=0;
-  g.waveLeft=10+level*3;
+  g.fireTimer=0; g.spawnTimer=2.6; g.bossSpawned=false; g.boss=null; g.shake=0; g.flash=0;
+  g.waveLeft=10+level*3; g.intro=3.6;
   document.getElementById('endScreen').classList.add('hidden');
   document.getElementById('startScreen').classList.add('hidden');
 }
@@ -200,7 +200,7 @@ function spawnEnemy(midboss){
   const t=midboss?1:(level<=1?0:(Math.random()<.75?0:1));
   const count=(midboss?30+level*6:(t===0?3+Math.floor(Math.random()*5):8+Math.floor(Math.random()*8)))+level;
   const x=cenL()+Math.random()*(cenR()-cenL());
-  g.enemies.push({x,y:-40,count,max:count,tier:t,boss:false,midboss:!!midboss,speed:(midboss?16:24+level*2)});
+  g.enemies.push({x,y:-40,count,max:count,tier:t,boss:false,midboss:!!midboss,speed:(midboss?22:32+level*3),flash:0});
 }
 function spawnBoss(){ const tier=bossTier(), count=Math.round((160+level*110)*(1+level*.1));
   g.boss={x:(cenL()+cenR())/2,y:-70,count,max:count,tier,boss:true,speed:12};
@@ -223,9 +223,11 @@ function update(dt){
     if(g.units.length<320) g.units.push({x:cx+(Math.random()*2-1)*10, y:cannonY, done:false}); }
 
   // 적 스폰(가운데, 물량 많이)
+  if(g.intro>0) g.intro-=dt;
   if(!g.bossSpawned){ g.spawnTimer-=dt;
     if(g.spawnTimer<=0 && g.waveLeft>0){ const mid=(g.waveLeft%5===0);
-      g.spawnTimer=mid?2.2:Math.max(.35,0.9-level*.05); spawnEnemy(mid); g.waveLeft--; }
+      g.spawnTimer=mid?2.2:Math.max(.28,0.8-level*.05); spawnEnemy(mid); g.waveLeft--;
+      if(!mid && Math.random()<.45 && g.waveLeft>0){ spawnEnemy(false); g.waveLeft--; } }
     if(g.waveLeft<=0 && g.enemies.length===0) spawnBoss();
   }
 
@@ -251,10 +253,11 @@ function update(dt){
 
   // 적 이동 + 충돌(가운데)
   for(let ei=g.enemies.length-1;ei>=0;ei--){ const e=g.enemies[ei];
-    e.y+=e.speed*dt; const ex=e.x*W, er=e.boss?54:(e.midboss?30:(13+Math.min(22,e.count*1.2)));
+    e.y+=e.speed*dt; if(e.flash>0) e.flash-=dt*3.5;
+    const ex=e.x*W, er=e.boss?54:(e.midboss?30:(13+Math.min(22,e.count*1.2)));
     for(let i=g.units.length-1;i>=0;i--){ const u=g.units[i]; if(u.done||laneOf(u.x)!==1) continue;
       const dx=u.x-ex, dy=u.y-e.y;
-      if(dx*dx+dy*dy<(er+8)*(er+8)){ u.done=true; e.count-=g.tier;
+      if(dx*dx+dy*dy<(er+8)*(er+8)){ u.done=true; e.count-=g.tier; e.flash=.3;
         hit(u.x,u.y,e.tier>0?'#c79bff':'#ffd36b');
         if(e.count<=0){ boom(ex,e.y,e.tier); g.enemies.splice(ei,1);
           if(e.boss) return endGame(true); break; } }
@@ -303,6 +306,8 @@ function render(){
   for(const e of g.enemies){ const ex=e.x*W, er=e.boss?54:(e.midboss?30:(13+Math.min(22,e.count*1.2)));
     ctx.fillStyle='rgba(0,0,0,.2)'; ctx.beginPath(); ctx.ellipse(ex,e.y+er*.7,er*.9,er*.3,0,0,7); ctx.fill();
     drawBug(ex,e.y,er,e.tier);
+    if(e.flash>0){ ctx.globalAlpha=Math.min(1,e.flash); ctx.fillStyle='#fff';
+      ctx.beginPath(); ctx.arc(ex,e.y,er,0,7); ctx.fill(); ctx.globalAlpha=1; }
     ctx.fillStyle='#fff'; ctx.strokeStyle='rgba(0,0,0,.5)'; ctx.lineWidth=4;
     ctx.font=`900 ${e.boss?28:(e.midboss?17:13)}px -apple-system,sans-serif`;
     const t=Math.max(0,e.count).toString(); ctx.strokeText(t,ex,e.y); ctx.fillText(t,ex,e.y);
@@ -328,6 +333,18 @@ function render(){
   ctx.globalAlpha=1;
   ctx.restore();
 
+  // 시작 안내
+  if(g.intro>0){ const a=Math.min(1,g.intro/1.2);
+    ctx.globalAlpha=a; ctx.textAlign='center'; ctx.textBaseline='middle';
+    const bob=Math.sin(performance.now()*.006)*6;
+    const tips=[['왼쪽\n배럴 깨기',roadX+colW*0.5,'#ffd873'],
+                ['가운데\n적 막기',roadX+colW*1.5,'#ff9db4'],
+                ['오른쪽\n＋갯수',roadX+colW*2.5,'#aebbf5']];
+    for(const[txt,x,col]of tips){ ctx.fillStyle=col; ctx.font='900 15px -apple-system,sans-serif';
+      const ls=txt.split('\n'); ls.forEach((s,i)=>ctx.fillText(s,x,H*0.5+bob+i*20));
+      ctx.font='900 26px -apple-system,sans-serif'; ctx.fillText('⬆',x,H*0.5+bob-30); }
+    ctx.globalAlpha=1;
+  }
   drawHUD();
   if(Math.abs(g.flash)>.01){ ctx.fillStyle=`rgba(255,240,180,${g.flash})`; ctx.fillRect(0,0,W,H); }
 }
